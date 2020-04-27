@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -46,4 +47,4 @@ class ConfidNet(nn.Module):
             )
 
     def forward(self, x):
-        return self.uncertainty(x)
+        return torch.sigmoid(self.uncertainty(x))

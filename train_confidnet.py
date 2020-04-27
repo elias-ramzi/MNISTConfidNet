@@ -20,11 +20,17 @@ parser.add_argument('-cp', '--checkpoints', type=int, default=10,
                     help='[int] Model checkpoints',)
 parser.add_argument('-ts', '--train-split', type=float, default=.8,
                     help='[float] Train split',)
+parser.add_argument('-lr', '--learning-rate', type=float, default=.001,
+                    help='[float] Learning rate',)
 parser.add_argument('-d', '--device', type=str, default="cuda",
                     choices=["cuda", "cpu"],
                     help='[str] Device used',)
+parser.add_argument('-convnet', type=str, required=True,
+                    help="[str] Path to ConvNet's weights")
 parser.add_argument('-log', '--log-dir', type=str, default=None,
                     help='[str] Log directory',)
+parser.add_argument('-small', default=False, action="store_true",
+                    help="Pass this argument to have a smaller ConfidNet")
 args = parser.parse_args()
 
 loader_kwargs = {
@@ -36,7 +42,15 @@ loader_kwargs = {
 }
 
 confidnet_kwargs = {
-    "small": True,
+    "small": args.small,
+}
+
+optimizer_kwargs = {
+    "lr": args.learning_rate,
+    "betas": (0.9, 0.999),
+    "eps": 1e-08,
+    "weight_decay": 0,
+    "amsgrad": False,
 }
 
 
@@ -47,7 +61,8 @@ parameters = dict(
     device=args.device,
     model_checkpoint=args.checkpoints,
     convnet_kwargs={},
-    confidnet_kwargs={},
+    confidnet_kwargs=confidnet_kwargs,
+    optimizer_kwargs=optimizer_kwargs,
     loader_kwargs=loader_kwargs,
 )
 
@@ -57,11 +72,7 @@ with open(os.path.join(config_dir, "config.jbl"), 'wb') as outfile:
 
 torch.manual_seed(args.seed)
 trainer = Trainer(**parameters)
-convnet_weight_path = trainer.train_convnet(
-    epoch=args.epochs,
-    # epoch_to_restore=args.epoch_to_restore
-)
 confidnet_weight_path = trainer.train_confidnet(
-    convnet_weight_path,
+    args.convnet,
     epoch=args.epochs,
 )
