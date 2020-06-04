@@ -3,21 +3,22 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from torch.optim import Adam, lr_scheduler
+from torch.optim import Adam  # , lr_scheduler
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
-import torchvision
-import torchvision.transforms as T
 from sklearn.metrics import accuracy_score
 
-from model import ConvNet, ConfidNet
+from models import ConfidNet
+from data import get_datasets
 from utils import ConfidenceHistograms
 
 
 class Trainer:
     def __init__(
         self,
+        convnet,
+        dataset="MNIST",
         seed=23,
         log_dir="~/experiments/ConfidNet",
         train_val_split=.8,
@@ -28,6 +29,8 @@ class Trainer:
         optimizer_kwargs={},
         loader_kwargs={},
     ):
+        self.convnet = convnet
+        self.dataset = dataset
         self.seed = seed
         self.train_val_split = train_val_split
         self.device = device
@@ -42,25 +45,12 @@ class Trainer:
         self.model_filename.mkdir(parents=True, exist_ok=True)
         self.model_filename = self.model_filename / "{model}_{epoch}.pth"
 
-    def get_datasets(self):
-        torch.manual_seed(self.seed)
-        train_valid_dataset = torchvision.datasets.MNIST(
-            root=Path("~/datasets/MNIST").expanduser(),
-            train=True,
-            transform=T.ToTensor(),
-            download=True)
-        nb_train = int(self.train_val_split * len(train_valid_dataset))
-        nb_valid = len(train_valid_dataset) - nb_train
-        train_dataset, valid_dataset = torch.utils.data.dataset.random_split(
-            train_valid_dataset, [nb_train, nb_valid])
-        return train_dataset, valid_dataset
-
     def train_convnet(self, epoch=100, epoch_to_restore=0):
-        train, val = self.get_datasets()
+        train, val = get_datasets(self.dataset, self.train_val_split, self.seed)
         train_loader = DataLoader(train, **self.loader_kwargs)
         val_loader = DataLoader(val, **self.loader_kwargs)
 
-        net = ConvNet(**self.convnet_kwargs).to(self.device)
+        net = self.convnet(**self.convnet_kwargs).to(self.device)
         optimizer = Adam(net.parameters())
         criterion = torch.nn.CrossEntropyLoss()
         writer = SummaryWriter(self.log_dir)
@@ -108,11 +98,11 @@ class Trainer:
                 score = accuracy_score(label.cpu(), pred.cpu())
                 history_val["metric"].append(score)
 
-                step = min((idx_batch+1) * self.loader_kwargs["batch_size"], len(train))
+                step = min((idx_batch+1) * self.loader_kwargs["batch_size"], len(val))
                 sys.stdout.write(
                     "Validation : "
                     f"Epoch {e}/{epoch + epoch_to_restore}; "
-                    f"Step {step}/{len(train)}; "
+                    f"Step {step}/{len(val)}; "
                     f"Loss {loss}; "
                     f"Score {score}\r"
                 )
@@ -144,11 +134,11 @@ class Trainer:
         return filename
 
     def train_confidnet(self, convnet_path, epoch=100, epoch_to_restore=0):
-        train, val = self.get_datasets()
+        train, val = get_datasets(self.dataset, self.train_val_split, self.seed)
         train_loader = DataLoader(train, **self.loader_kwargs)
         val_loader = DataLoader(val, **self.loader_kwargs)
 
-        conv_net = ConvNet(**self.convnet_kwargs).to(self.device)
+        conv_net = self.convnet(**self.convnet_kwargs).to(self.device)
         conv_net.load_state_dict(torch.load(convnet_path))
         conv_net.eval()
         confid_net = ConfidNet(**self.confidnet_kwargs).to(self.device)
@@ -198,11 +188,11 @@ class Trainer:
                 loss = criterion(confidence, F.softmax(pred, dim=1).gather(1, label.unsqueeze(1)))
                 history_val["loss"].append(loss.detach().item())
 
-                step = min((idx_batch+1) * self.loader_kwargs["batch_size"], len(train))
+                step = min((idx_batch+1) * self.loader_kwargs["batch_size"], len(val))
                 sys.stdout.write(
                     "Validation : "
                     f"Epoch {e}/{epoch + epoch_to_restore}; "
-                    f"Step {step}/{len(train)}; "
+                    f"Step {step}/{len(val)}; "
                     f"Loss {loss.detach().item()};\r"
                 )
                 sys.stdout.flush()

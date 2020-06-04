@@ -18,6 +18,10 @@ parser.add_argument('-nw', '--num-workers', type=int, default=8,
                     help='[int] Number of workers',)
 parser.add_argument('-cp', '--checkpoints', type=int, default=10,
                     help='[int] Model checkpoints',)
+parser.add_argument('-inc', '--in_channels', type=int, default=1,
+                    help='[int] Input channels',)
+parser.add_argument('-nc', '--num_classes', type=int, default=10,
+                    help='[int] Input channels',)
 parser.add_argument('-ts', '--train-split', type=float, default=.8,
                     help='[float] Train split',)
 parser.add_argument('-lr', '--learning-rate', type=float, default=.001,
@@ -25,6 +29,8 @@ parser.add_argument('-lr', '--learning-rate', type=float, default=.001,
 parser.add_argument('-d', '--device', type=str, default="cuda",
                     choices=["cuda", "cpu"],
                     help='[str] Device used',)
+parser.add_argument('-data', type=str, default='mnist',
+                    help='[str] Dataset to use')
 parser.add_argument('-convnet', type=str, required=True,
                     help="[str] Path to ConvNet's weights")
 parser.add_argument('-log', '--log-dir', type=str, default=None,
